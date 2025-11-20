@@ -10,7 +10,7 @@
 
 # 🇺🇸 English Version
 
-![sample](https://raw.githubusercontent.com/zelda0079/Steam-Curator-Game-Manager/refs/heads/main/sample.png)
+![sample](https://raw.githubusercontent.com/zelda0079/Steam-Curator-Enhanced/refs/heads/main/sample.png)
 
 [My Curator](https://store.steampowered.com/curator/33923354)
 
@@ -78,7 +78,7 @@ Version **1.1** includes major enhancements to navigation monitoring, dropdown b
    [https://www.tampermonkey.net/](https://www.tampermonkey.net/)
 
 2. Install the userscript:
-   [https://github.com/zelda0079/Steam-Curator-Game-Manager/raw/refs/heads/main/Steam_Curator_Game_Manager.user.js](https://github.com/zelda0079/Steam-Curator-Game-Manager/raw/refs/heads/main/Steam_Curator_Game_Manager.user.js)
+   [https://github.com/zelda0079/Steam-Curator-Enhanced/raw/refs/heads/main/Steam_Curator_Game_Manager.user.js](https://github.com/zelda0079/Steam-Curator-Enhanced/raw/refs/heads/main/Steam_Curator_Game_Manager.user.js)
 
 ---
 
@@ -135,7 +135,7 @@ Version **1.1** includes major enhancements to navigation monitoring, dropdown b
 
 ---
 
-![截圖](https://raw.githubusercontent.com/zelda0079/Steam-Curator-Game-Manager/refs/heads/main/sample.png)
+![截圖](https://raw.githubusercontent.com/zelda0079/Steam-Curator-Enhanced/refs/heads/main/sample.png)
 
 [我的鑑賞家](https://store.steampowered.com/curator/33923354)
 
@@ -193,7 +193,7 @@ Version **1.1** includes major enhancements to navigation monitoring, dropdown b
    [https://www.tampermonkey.net/](https://www.tampermonkey.net/)
 
 2. 安裝腳本：
-   [https://github.com/zelda0079/Steam-Curator-Game-Manager/raw/refs/heads/main/Steam_Curator_Game_Manager.user.js](https://github.com/zelda0079/Steam-Curator-Game-Manager/raw/refs/heads/main/Steam_Curator_Game_Manager.user.js)
+   [https://github.com/zelda0079/Steam-Curator-Enhanced/raw/refs/heads/main/Steam_Curator_Game_Manager.user.js](https://github.com/zelda0079/Steam-Curator-Enhanced/raw/refs/heads/main/Steam_Curator_Game_Manager.user.js)
 
 ---
 
@@ -236,4 +236,3 @@ Version **1.1** includes major enhancements to navigation monitoring, dropdown b
 * 初始化鎖
 * 統一遊戲區塊偵測
 * 提升穩定性
-
