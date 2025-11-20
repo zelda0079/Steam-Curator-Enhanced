@@ -1,10 +1,11 @@
 // ==UserScript==
-// @name         Steam Curator Game Manager
+// @name         Steam Curator Enhanced
 // @namespace    http://tampermonkey.net/
-// @version      1.0.0
+// @version      1.1.0
 // @description  Manages checkboxes for Steam Curator accepted games with toggle, review status, and import/export functionality, now with language switching.
-// @author       zelda & Grok3 & Gemini 2.5  Pro
-// @match        https://store.steampowered.com/curator/*/admin/*
+// @author       zelda & Grok3 & Gemini 2.5 Pro & GPT5
+// @match        https://store.steampowered.com/curator/*/admin*
+// @match https://store.steampowered.com/curator/*/about/*
 // @supportURL   https://github.com/zelda0079/Steam-Curator-Game-Manager/tree/main
 // @downloadURL  https://github.com/zelda0079/Steam-Curator-Game-Manager/raw/refs/heads/main/Steam_Curator_Game_Manager.user.js
 // @updateURL    https://github.com/zelda0079/Steam-Curator-Game-Manager/raw/refs/heads/main/Steam_Curator_Game_Manager.user.js
@@ -12,56 +13,83 @@
 // ==/UserScript==
 
 (function() {
-    'use strict';
+    let lastURL = location.href;
 
-    console.log('Steam Curator Game Manager is running');
+    // 主初始化（在第一次載入頁面時跑）
+    handlePage();
 
-    // --- Language Configuration ---
-    const languages = {
-        'en': {
-            showAllGames: 'Show All Games',
-            showHiddenGames: 'Show Hidden Games',
-            showUnhiddenGames: 'Show Unhidden Games',
-            reviewedAndUnreviewed: 'Reviewed & Unreviewed',
-            reviewed: 'Reviewed',
-            unreviewed: 'Unreviewed',
-            export: 'Export',
-            import: 'Import',
-            selectAll: 'Select All',
-            deselectAll: 'Deselect All'
-        },
-        'zh-TW': {
-            showAllGames: '顯示所有遊戲',
-            showHiddenGames: '顯示隱藏的遊戲',
-            showUnhiddenGames: '顯示未隱藏的遊戲',
-            reviewedAndUnreviewed: '已評論與尚未評論',
-            reviewed: '已評論',
-            unreviewed: '尚未評論',
-            export: '匯出',
-            import: '匯入',
-            selectAll: '全選',
-            deselectAll: '取消全選'
-        },
-        'zh-CN': {
-            showAllGames: '显示所有游戏',
-            showHiddenGames: '显示隐藏的游戏',
-            showUnhiddenGames: '显示未隐藏的游戏',
-            reviewedAndUnreviewed: '已评论与尚未评论',
-            reviewed: '已评论',
-            unreviewed: '尚未评论',
-            export: '导出',
-            import: '导入',
-            selectAll: '全选',
-            deselectAll: '取消全选'
+    // 監控 pushState / replaceState（Steam admin nav 使用）
+    (function(history){
+        const push = history.pushState;
+        history.pushState = function(){
+            push.apply(history, arguments);
+            setTimeout(checkURLChange, 50);
+        };
+        const replace = history.replaceState;
+        history.replaceState = function(){
+            replace.apply(history, arguments);
+            setTimeout(checkURLChange, 50);
+        };
+    })(window.history);
+
+    // 監控 popstate（如按返回鍵）
+    window.addEventListener("popstate", () => setTimeout(checkURLChange, 50));
+
+    function checkURLChange() {
+        if (location.href !== lastURL) {
+            lastURL = location.href;
+            console.log("[Game Manager] URL changed →", location.href);
+            handlePage();
         }
-    };
+    }
 
-    let currentLang = localStorage.getItem('curatorScriptLang') || 'en';
-    let i18n = languages[currentLang];
 
-    // Hide the app_filter div and style controls wrapper
-    const style = document.createElement('style');
-    style.textContent = `
+    function runAcceptedPageFeatures(){
+        // --- Language Configuration ---
+        const languages = {
+            'en': {
+                showAllGames: 'Show All Games',
+                showHiddenGames: 'Show Hidden Games',
+                showUnhiddenGames: 'Show Unhidden Games',
+                reviewedAndUnreviewed: 'Reviewed & Unreviewed',
+                reviewed: 'Reviewed',
+                unreviewed: 'Unreviewed',
+                export: 'Export',
+                import: 'Import',
+                selectAll: 'Select All',
+                deselectAll: 'Deselect All'
+            },
+            'zh-TW': {
+                showAllGames: '顯示所有遊戲',
+                showHiddenGames: '顯示隱藏的遊戲',
+                showUnhiddenGames: '顯示未隱藏的遊戲',
+                reviewedAndUnreviewed: '已評論與尚未評論',
+                reviewed: '已評論',
+                unreviewed: '尚未評論',
+                export: '匯出',
+                import: '匯入',
+                selectAll: '全選',
+                deselectAll: '取消全選'
+            },
+            'zh-CN': {
+                showAllGames: '显示所有游戏',
+                showHiddenGames: '显示隐藏的游戏',
+                showUnhiddenGames: '显示未隐藏的游戏',
+                reviewedAndUnreviewed: '已评论与尚未评论',
+                reviewed: '已评论',
+                unreviewed: '未评论',
+                export: '导出',
+                import: '导入',
+                selectAll: '全选',
+                deselectAll: '取消全选'
+            }
+        };
+
+        let currentLang = localStorage.getItem('curatorScriptLang') || 'en';
+        let i18n = languages[currentLang];
+
+        const style = document.createElement('style');
+        style.textContent = `
         .app_filter { display: none !important; }
         #curator-controls-wrapper {
             display: flex !important;
@@ -80,301 +108,447 @@
             vertical-align: middle;
         }
     `;
-    document.head.appendChild(style);
+        document.head.appendChild(style);
 
-    // Function to load saved checkbox states from localStorage
-    function loadCheckboxStates() {
-        try {
-            const savedStates = localStorage.getItem('steamCuratorCheckboxes');
-            return savedStates ? JSON.parse(savedStates) : {};
-        } catch (e) {
-            console.error('Error loading checkbox states:', e);
-            return {};
-        }
-    }
-
-    // Function to save checkbox states to localStorage
-    function saveCheckboxStates(states) {
-        try {
-            localStorage.setItem('steamCuratorCheckboxes', JSON.stringify(states));
-        } catch (e) {
-            console.error('Error saving checkbox states:', e);
-        }
-    }
-
-    // Function to toggle visibility of games based on toggle state and review state
-    function toggleCheckedGames(toggleState, reviewState) {
-        const appBlocks = document.querySelectorAll('.app_ctn.app_block, [id^="app-ctn-"]');
-
-        requestAnimationFrame(() => {
-            appBlocks.forEach(block => {
-                const checkbox = block.querySelector('.curator-checkbox');
-                if (!checkbox) return;
-
-                const isChecked = checkbox.checked;
-                const isReviewed = block.classList.contains('app_reviewed');
-                const isUnreviewed = block.classList.contains('app_unreviewed');
-
-                let reviewMatch = (reviewState === 'BOTH') ||
-                                  (reviewState === 'app_reviewed' && isReviewed) ||
-                                  (reviewState === 'app_unreviewed' && isUnreviewed);
-
-                let shouldShow = false;
-                if (reviewMatch) {
-                    if (toggleState === 'all') {
-                        shouldShow = true;
-                    } else if (toggleState === 'hidden') {
-                        shouldShow = isChecked;
-                    } else if (toggleState === 'unhidden') {
-                        shouldShow = !isChecked;
-                    }
-                }
-
-                block.style.display = shouldShow ? '' : 'none';
-            });
-        });
-
-        localStorage.setItem('steamCuratorToggleState', toggleState);
-        localStorage.setItem('steamCuratorReviewState', reviewState);
-    }
-
-    // Function to update checkbox states on the page
-    function updateCheckboxes(newStates) {
-        const appBlocks = document.querySelectorAll('.app_ctn.app_block, [id^="app-ctn-"]');
-        appBlocks.forEach(block => {
-            const appId = block.id.replace(/^app-ctn-/, '');
-            const checkbox = block.querySelector('.curator-checkbox');
-            if (checkbox && newStates.hasOwnProperty(appId)) {
-                checkbox.checked = newStates[appId];
-            }
-        });
-    }
-
-    // Function to add checkboxes to new game blocks
-    function addCheckboxesToNewBlocks(blocks, checkboxStates) {
-        blocks.forEach(block => {
-            const appId = block.id.replace(/^app-ctn-/, '');
-            if (!block.querySelector('.curator-checkbox')) {
-                const imgElement = block.querySelector('img');
-                const checkbox = document.createElement('input');
-                checkbox.type = 'checkbox';
-                checkbox.className = 'curator-checkbox';
-                checkbox.style.marginRight = '10px';
-                checkbox.style.verticalAlign = 'middle';
-                checkbox.style.display = 'inline-block';
-                checkbox.checked = checkboxStates[appId] || false;
-
-                checkbox.addEventListener('change', () => {
-                    checkboxStates[appId] = checkbox.checked;
-                    saveCheckboxStates(checkboxStates);
-                });
-
-                if (imgElement && imgElement.parentNode) {
-                    imgElement.parentNode.insertBefore(checkbox, imgElement);
-                } else {
-                    block.insertBefore(checkbox, block.firstChild);
-                }
-            }
-        });
-    }
-
-    // Initialize checkbox states
-    let checkboxStates = loadCheckboxStates();
-
-    // Function to create and insert controls
-    function createControls() {
-        let wrapper = document.getElementById('curator-controls-wrapper');
-        if (wrapper) {
-            wrapper.innerHTML = '';
-        } else {
-            wrapper = document.createElement('div');
-            wrapper.id = 'curator-controls-wrapper';
-        }
-
-        const langSelect = document.createElement('select');
-        langSelect.id = 'lang-select';
-        langSelect.style.cssText = `margin: 0 10px; padding: 8px 16px; background-color: #1b2838; color: #ffffff; border: 2px solid #66c0f4; cursor: pointer; border-radius: 4px;`;
-        const langOptions = {'en': 'English', 'zh-TW': '正體中文', 'zh-CN': '简体中文'};
-        for (const [value, text] of Object.entries(langOptions)) {
-            const option = document.createElement('option');
-            option.value = value;
-            option.textContent = text;
-            if (value === currentLang) option.selected = true;
-            langSelect.appendChild(option);
-        }
-        langSelect.addEventListener('change', () => {
-            currentLang = langSelect.value;
-            localStorage.setItem('curatorScriptLang', currentLang);
-            i18n = languages[currentLang];
-            initializeScript();
-        });
-        wrapper.appendChild(langSelect);
-
-        const controlStyles = `margin: 0 10px; padding: 8px 16px; background-color: #1b2838; color: #ffffff; border: 2px solid #66c0f4; cursor: pointer; border-radius: 4px; font-weight: bold;`;
-
-        const toggleSelect = document.createElement('select');
-        toggleSelect.id = 'toggle-select';
-        toggleSelect.style.cssText = controlStyles;
-        const toggleOptions = [
-            { value: 'all', text: i18n.showAllGames },
-            { value: 'hidden', text: i18n.showHiddenGames },
-            { value: 'unhidden', text: i18n.showUnhiddenGames }
-        ];
-        toggleOptions.forEach(opt => {
-            const option = document.createElement('option');
-            option.value = opt.value;
-            option.textContent = opt.text;
-            toggleSelect.appendChild(option);
-        });
-
-        const reviewSelect = document.createElement('select');
-        reviewSelect.id = 'review-select';
-        reviewSelect.style.cssText = controlStyles;
-        const reviewOptions = [
-            { value: 'BOTH', text: i18n.reviewedAndUnreviewed },
-            { value: 'app_reviewed', text: i18n.reviewed },
-            { value: 'app_unreviewed', text: i18n.unreviewed }
-        ];
-        reviewOptions.forEach(opt => {
-            const option = document.createElement('option');
-            option.value = opt.value;
-            option.textContent = opt.text;
-            reviewSelect.appendChild(option);
-        });
-
-        const createButton = (text) => {
-            const button = document.createElement('button');
-            button.textContent = text;
-            button.style.cssText = controlStyles;
-            button.addEventListener('mouseover', () => button.style.backgroundColor = '#2a475e');
-            button.addEventListener('mouseout', () => button.style.backgroundColor = '#1b2838');
-            return button;
-        };
-
-        const exportButton = createButton(i18n.export);
-        const importButton = createButton(i18n.import);
-        const selectAllButton = createButton(i18n.selectAll);
-        const deselectAllButton = createButton(i18n.deselectAll);
-
-        exportButton.addEventListener('click', () => {
+        function loadCheckboxStates() {
             try {
-                const data = JSON.stringify(checkboxStates, null, 2);
-                const blob = new Blob([data], { type: 'application/json' });
+                return JSON.parse(localStorage.getItem('steamCuratorCheckboxes')) || {};
+            } catch {
+                return {};
+            }
+        }
+
+        function saveCheckboxStates(state) {
+            localStorage.setItem('steamCuratorCheckboxes', JSON.stringify(state));
+        }
+
+        function toggleCheckedGames(toggleState, reviewState) {
+            const blocks = document.querySelectorAll('.app_ctn.app_block, [id^="app-ctn-"]');
+
+            requestAnimationFrame(() => {
+                blocks.forEach(block => {
+                    const cb = block.querySelector('.curator-checkbox');
+                    if (!cb) return;
+
+                    const checked = cb.checked;
+                    const reviewed = block.classList.contains('app_reviewed');
+                    const unreviewed = block.classList.contains('app_unreviewed');
+
+                    let reviewOK =
+                        reviewState === 'BOTH' ||
+                        (reviewState === 'app_reviewed' && reviewed) ||
+                        (reviewState === 'app_unreviewed' && unreviewed);
+
+                    let show = false;
+                    if (reviewOK) {
+                        if (toggleState === 'all') show = true;
+                        else if (toggleState === 'hidden') show = checked;
+                        else if (toggleState === 'unhidden') show = !checked;
+                    }
+
+                    block.style.display = show ? '' : 'none';
+                });
+            });
+
+            localStorage.setItem('steamCuratorToggleState', toggleState);
+            localStorage.setItem('steamCuratorReviewState', reviewState);
+        }
+
+        function updateCheckboxes(states) {
+            const blocks = document.querySelectorAll('.app_ctn.app_block, [id^="app-ctn-"]');
+            blocks.forEach(block => {
+                const id = block.id.replace(/^app-ctn-/, '');
+                const cb = block.querySelector('.curator-checkbox');
+                if (cb && id in states) cb.checked = states[id];
+            });
+        }
+
+        function addCheckboxesToNewBlocks(blocks, states) {
+            blocks.forEach(block => {
+                const id = block.id.replace(/^app-ctn-/, '');
+                if (!block.querySelector('.curator-checkbox')) {
+                    const checkbox = document.createElement('input');
+                    checkbox.type = 'checkbox';
+                    checkbox.className = 'curator-checkbox';
+                    checkbox.checked = states[id] || false;
+
+                    const img = block.querySelector('img');
+                    if (img?.parentNode) img.parentNode.insertBefore(checkbox, img);
+                    else block.insertBefore(checkbox, block.firstChild);
+
+                    checkbox.addEventListener('change', () => {
+                        states[id] = checkbox.checked;
+                        saveCheckboxStates(states);
+                    });
+                }
+            });
+        }
+
+        let checkboxStates = loadCheckboxStates();
+
+        function createControls() {
+            let wrapper = document.getElementById('curator-controls-wrapper');
+            if (!wrapper) {
+                wrapper = document.createElement('div');
+                wrapper.id = 'curator-controls-wrapper';
+            } else wrapper.innerHTML = '';
+
+            const styleBtn = `
+            margin: 0 10px; padding: 8px 16px;
+            background-color: #1b2838; color: #fff;
+            border: 2px solid #66c0f4; border-radius: 4px;
+            cursor: pointer; font-weight: bold;
+        `;
+
+            const lang = document.createElement('select');
+            lang.style.cssText = styleBtn;
+            const langMap = { 'en': 'English', 'zh-TW': '正體中文', 'zh-CN': '简体中文' };
+            for (const [v, t] of Object.entries(langMap)) {
+                const op = document.createElement('option');
+                op.value = v; op.textContent = t;
+                if (v === currentLang) op.selected = true;
+                lang.appendChild(op);
+            }
+            lang.onchange = () => {
+                currentLang = lang.value;
+                localStorage.setItem('curatorScriptLang', currentLang);
+                i18n = languages[currentLang];
+                initializeScript();
+            };
+            wrapper.appendChild(lang);
+
+            const toggle = document.createElement('select');
+            toggle.style.cssText = styleBtn;
+            [
+                { value: 'all', text: i18n.showAllGames },
+                { value: 'hidden', text: i18n.showHiddenGames },
+                { value: 'unhidden', text: i18n.showUnhiddenGames }
+            ].forEach(o => {
+                const op = document.createElement('option');
+                op.value = o.value; op.textContent = o.text;
+                toggle.appendChild(op);
+            });
+
+            const review = document.createElement('select');
+            review.style.cssText = styleBtn;
+            [
+                { value: 'BOTH', text: i18n.reviewedAndUnreviewed },
+                { value: 'app_reviewed', text: i18n.reviewed },
+                { value: 'app_unreviewed', text: i18n.unreviewed }
+            ].forEach(o => {
+                const op = document.createElement('option');
+                op.value = o.value; op.textContent = o.text;
+                review.appendChild(op);
+            });
+
+            wrapper.appendChild(toggle);
+            wrapper.appendChild(review);
+
+            const makeBtn = txt => {
+                const b = document.createElement('button');
+                b.textContent = txt;
+                b.style.cssText = styleBtn;
+                return b;
+            };
+
+            const exportBtn = makeBtn(i18n.export);
+            const importBtn = makeBtn(i18n.import);
+            const selAll = makeBtn(i18n.selectAll);
+            const deselAll = makeBtn(i18n.deselectAll);
+
+            const inputFile = document.createElement('input');
+            inputFile.type = 'file'; inputFile.style.display = 'none';
+
+            exportBtn.onclick = () => {
+                const blob = new Blob([JSON.stringify(checkboxStates, null, 2)], { type: 'application/json' });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
-                a.href = url;
-                a.download = 'steam_curator_checkboxes.json';
-                a.click();
+                a.href = url; a.download = 'steam_curator_checkboxes.json'; a.click();
                 URL.revokeObjectURL(url);
-            } catch (e) {
-                console.error('Error exporting states:', e);
-            }
-        });
+            };
 
-        const importInput = document.createElement('input');
-        importInput.type = 'file';
-        importInput.accept = '.json';
-        importInput.style.display = 'none';
-        importButton.addEventListener('click', () => importInput.click());
-        importInput.addEventListener('change', (event) => {
-            const file = event.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    try {
-                        checkboxStates = JSON.parse(e.target.result);
-                        saveCheckboxStates(checkboxStates);
-                        updateCheckboxes(checkboxStates);
-                        toggleCheckedGames(toggleSelect.value, reviewSelect.value);
-                    } catch (err) {
-                        console.error('Error importing states:', err);
-                    }
+            importBtn.onclick = () => inputFile.click();
+            inputFile.onchange = e => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const r = new FileReader();
+                r.onload = ev => {
+                    checkboxStates = JSON.parse(ev.target.result);
+                    saveCheckboxStates(checkboxStates);
+                    updateCheckboxes(checkboxStates);
+                    toggleCheckedGames(toggle.value, review.value);
                 };
-                reader.readAsText(file);
+                r.readAsText(file);
+            };
+
+            selAll.onclick = () => {
+                document.querySelectorAll('.curator-checkbox').forEach(cb => {
+                    cb.checked = true;
+                    const id = cb.closest('.app_ctn').id.replace(/^app-ctn-/, '');
+                    checkboxStates[id] = true;
+                });
+                saveCheckboxStates(checkboxStates);
+            };
+
+            deselAll.onclick = () => {
+                document.querySelectorAll('.curator-checkbox').forEach(cb => {
+                    cb.checked = false;
+                    const id = cb.closest('.app_ctn').id.replace(/^app-ctn-/, '');
+                    checkboxStates[id] = false;
+                });
+                saveCheckboxStates(checkboxStates);
+            };
+
+            wrapper.appendChild(exportBtn);
+            wrapper.appendChild(importBtn);
+            wrapper.appendChild(inputFile);
+            wrapper.appendChild(selAll);
+            wrapper.appendChild(deselAll);
+
+            const parent = document.querySelector('.admin_content') || document.body;
+            parent.insertBefore(wrapper, parent.firstChild);
+
+            toggle.value = localStorage.getItem('steamCuratorToggleState') || 'all';
+            review.value = localStorage.getItem('steamCuratorReviewState') || 'BOTH';
+
+            toggle.onchange = () => toggleCheckedGames(toggle.value, review.value);
+            review.onchange = () => toggleCheckedGames(toggle.value, review.value);
+
+            return { toggle, review };
+        }
+
+        function initializeScript(){
+            if (!location.href.includes('/admin/accepted')) return;
+
+            const { toggle, review } = createControls();
+
+            const blocks = document.querySelectorAll('.app_ctn.app_block, [id^="app-ctn-"]');
+            addCheckboxesToNewBlocks(blocks, checkboxStates);
+            toggleCheckedGames(toggle.value, review.value);
+        }
+
+        /* ============================================================
+     * FIX PATCH START — 100% 按鈕顯示 + 下拉不縮回 + AJAX 載入穩定
+     * ============================================================ */
+
+        let initLock = false;
+        let lastURL = location.href;
+
+        function waitForBlocksThenInit() {
+            if (initLock) return;
+            initLock = true;
+
+            const timer = setInterval(() => {
+                const blocks = document.querySelectorAll('.app_ctn.app_block, [id^="app-ctn-"]');
+                if (blocks.length > 0) {
+                    clearInterval(timer);
+                    initializeScript();
+                    initLock = false;
+                }
+            }, 130);
+        }
+
+        // URL change detection (Steam admin nav uses pushState)
+        (function(history){
+            const push = history.pushState;
+            history.pushState = function(){
+                push.apply(history, arguments);
+                setTimeout(checkURL, 50);
+            };
+            const rep = history.replaceState;
+            history.replaceState = function(){
+                rep.apply(history, arguments);
+                setTimeout(checkURL, 50);
+            };
+        })(window.history);
+
+        window.addEventListener('popstate', () => setTimeout(checkURL, 50));
+
+        function checkURL(){
+            if (location.href !== lastURL) {
+                lastURL = location.href;
+                if (location.href.includes('/admin/accepted')) {
+                    waitForBlocksThenInit();
+                }
+            }
+        }
+
+        // Observe only when app blocks are added
+        const content = document.querySelector('.admin_content') || document.body;
+
+        const observer = new MutationObserver(muts => {
+            if (!location.href.includes('/admin/accepted')) return;
+
+            for (const m of muts) {
+                if ([...m.addedNodes].some(n =>
+                                           n.nodeType === 1 &&
+                                           (n.classList?.contains('app_ctn') ||
+                                            n.classList?.contains('app_block'))
+                                          )) {
+                    waitForBlocksThenInit();
+                    break;
+                }
             }
         });
 
-        const toggleAllCheckboxes = (checked) => {
-            document.querySelectorAll('.app_ctn.app_block:not([style*="display: none"]) .curator-checkbox').forEach(checkbox => {
-                const block = checkbox.closest('.app_ctn');
-                const appId = block.id.replace(/^app-ctn-/, '');
-                checkbox.checked = checked;
-                checkboxStates[appId] = checked;
-            });
-            saveCheckboxStates(checkboxStates);
-        };
+        observer.observe(content, { childList: true, subtree: true });
 
-        selectAllButton.addEventListener('click', () => toggleAllCheckboxes(true));
-        deselectAllButton.addEventListener('click', () => toggleAllCheckboxes(false));
+        // Initial run
+        waitForBlocksThenInit();
 
-        wrapper.appendChild(toggleSelect);
-        wrapper.appendChild(reviewSelect);
-        wrapper.appendChild(exportButton);
-        wrapper.appendChild(importButton);
-        wrapper.appendChild(importInput);
-        wrapper.appendChild(selectAllButton);
-        wrapper.appendChild(deselectAllButton);
-
-        const targetNode = document.querySelector('.admin_content') || document.body;
-        targetNode.insertBefore(wrapper, targetNode.firstChild);
-
-        toggleSelect.value = localStorage.getItem('steamCuratorToggleState') || 'all';
-        reviewSelect.value = localStorage.getItem('steamCuratorReviewState') || 'BOTH';
-
-        const debouncedToggle = debounce(() => toggleCheckedGames(toggleSelect.value, reviewSelect.value), 100);
-        toggleSelect.addEventListener('change', debouncedToggle);
-        reviewSelect.addEventListener('change', debouncedToggle);
-
-        return { toggleSelect, reviewSelect };
+        /* ============================================================
+     * FIX PATCH END
+     * ============================================================ */
     }
 
-    function debounce(func, wait) {
-        let timeout;
-        return (...args) => {
-            clearTimeout(timeout);
-            timeout = setTimeout(() => func.apply(this, args), wait);
-        };
-    }
+    async function runStatsPageFeatures() {
+        console.log("[Game Manager] Stats logic start");
 
-    function initializeScript() {
-        // Only run on the 'accepted' page
-        if (window.location.href.includes('/admin/accepted')) {
-            const { toggleSelect, reviewSelect } = createControls();
-            const appBlocks = document.querySelectorAll('.app_ctn.app_block, [id^="app-ctn-"]');
-            addCheckboxesToNewBlocks(appBlocks, checkboxStates);
-            toggleCheckedGames(toggleSelect.value, reviewSelect.value);
+        /* ------------------------------
+         * Step 0 — Detect curator_id
+         * ------------------------------ */
+        const curatorIdMatch = location.href.match(/curator\/([^\/]+)\/admin/);
+        if (!curatorIdMatch) {
+            console.error("[Game Manager] Cannot detect curator_id from URL");
+            return;
+        }
+        const curatorId = curatorIdMatch[1];
+
+        /* ------------------------------
+         * Step 1 — Load group_name (cache)
+         * ------------------------------ */
+        const CACHE_KEY = `curatorGroupName_${curatorId}`;
+        let groupName = localStorage.getItem(CACHE_KEY);
+
+        if (groupName) {
+            console.log("[Game Manager] Loaded group_name from cache:", groupName);
         } else {
-            // Remove controls if they exist on other admin pages
-            const wrapper = document.getElementById('curator-controls-wrapper');
-            if (wrapper) {
-                wrapper.remove();
+            console.log("[Game Manager] Fetching group name from /about/ ...");
+
+            const aboutURL = `https://store.steampowered.com/curator/${curatorId}/about/`;
+            try {
+                const res = await fetch(aboutURL, { credentials: "include" });
+                const html = await res.text();
+                const dom = new DOMParser().parseFromString(html, "text/html");
+
+                const groupBtn = dom.querySelector(
+                    'a.btnv6_white_transparent.btn_medium[href*="steamcommunity.com/groups"]'
+                );
+
+                if (groupBtn) {
+                    const m = groupBtn.href.match(/groups\/([^\/]+)/);
+                    if (m) {
+                        groupName = m[1];
+                        localStorage.setItem(CACHE_KEY, groupName);
+                        console.log("[Game Manager] group_name fetched:", groupName);
+                    }
+                }
+            } catch (err) {
+                console.error("[Game Manager] Error fetching group name:", err);
             }
         }
-    }
 
-    function retryInitializeScript(attempts = 10, delay = 200) {
-        if (window.location.href.includes('/admin/accepted') && document.querySelector('.app_ctn.app_block, [id^="app-ctn-"]')) {
-            initializeScript();
-        } else if (attempts > 0) {
-            setTimeout(() => retryInitializeScript(attempts - 1, delay), delay);
+        if (!groupName) {
+            console.error("[Game Manager] FAILED to obtain group_name");
+            return;
         }
-    }
 
-    // [FIXED] Listen for admin navigation clicks to re-initialize
-    function setupAdminNavListener() {
-        document.body.addEventListener('click', (event) => {
-            if (event.target.closest('a.icon_item')) {
-                // Use a timeout to allow the page content to update after the click
-                setTimeout(() => {
-                    console.log('Admin nav link clicked, attempting to re-initialize script.');
-                    retryInitializeScript();
-                }, 500);
+        /* ------------------------------
+         * Step 2 — Popup UI (2s fade)
+         * ------------------------------ */
+        function popup(text) {
+            let box = document.createElement("div");
+            box.textContent = text;
+            box.style.cssText = `
+                position: fixed;
+                left: 20px;
+                bottom: 20px;
+                padding: 10px 14px;
+                background: rgba(0,0,0,0.75);
+                color: #fff;
+                font-size: 13px;
+                border-radius: 6px;
+                z-index: 999999;
+                opacity: 0;
+                transition: opacity .3s;
+            `;
+            document.body.appendChild(box);
+            requestAnimationFrame(() => box.style.opacity = "1");
+            setTimeout(() => {
+                box.style.opacity = "0";
+                setTimeout(() => box.remove(), 400);
+            }, 2000);
+        }
+
+        /* ------------------------------
+         * Step 3 — Replace links function
+         * ------------------------------ */
+        function replaceLinks() {
+            const links = document.querySelectorAll('a[href*="/app/"]');
+            let count = 0;
+
+            links.forEach(a => {
+                const m = a.href.match(/app\/(\d+)/);
+                if (!m) return;
+                const appId = m[1];
+
+                a.href = `https://steamcommunity.com/groups/${groupName}/curation/app/${appId}`;
+                count++;
+            });
+
+            popup(`已替換連結 (${count})`);
+            console.log(`[Game Manager] Replaced ${count} app links`);
+        }
+
+        replaceLinks(); // initial run
+
+        /* ------------------------------
+         * Step 4 — High-efficiency observer
+         * ------------------------------ */
+        console.log("[Game Manager] Installing optimized MutationObserver");
+
+        const statsContainer =
+            document.querySelector("#detail_stats_table") ||
+            document.querySelector(".curation_queue_ctn") ||
+            document.querySelector(".admin_content") ||
+            document.body;
+
+        const observer = new MutationObserver(muts => {
+            let changed = false;
+            for (const m of muts) {
+                if (m.addedNodes.length > 0) changed = true;
+            }
+            if (changed) {
+                console.log("[Game Manager] Detected stats update, replacing links...");
+                replaceLinks();
             }
         });
+
+        observer.observe(statsContainer, {
+            childList: true,
+            subtree: true
+        });
+
+        console.log("[Game Manager] Stats enhancement enabled");
     }
 
-    // Initial setup
-    retryInitializeScript();
-    setupAdminNavListener();
 
+
+    function handlePage() {
+        const url = location.href;
+
+        if (url.includes("/admin/accepted")) {
+            console.log("[Game Manager] Entered /admin/accepted → initializing...");
+            runAcceptedPageFeatures();
+            return;
+        }
+
+        if (url.includes("/admin/stats")) {
+            console.log("[Game Manager] Entered /admin/stats → initializing...");
+            runStatsPageFeatures();
+            return;
+        }
+
+        console.log("[Game Manager] Page not targeted; idle (but monitoring).");
+    }
 })();
