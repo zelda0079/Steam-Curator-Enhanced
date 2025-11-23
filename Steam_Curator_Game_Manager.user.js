@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Steam Curator Enhanced
 // @namespace    http://tampermonkey.net/
-// @version      1.1.0
+// @version      1.1.1
 // @description  Manages checkboxes for Steam Curator accepted games with toggle, review status, and import/export functionality, now with language switching.
 // @author       zelda & Grok3 & Gemini 2.5 Pro & GPT5
 // @match        https://store.steampowered.com/curator/*/admin*
@@ -488,10 +488,16 @@
             let count = 0;
 
             links.forEach(a => {
+
+                //（1）沒有 curator_clanid → 不替換
+                if (!a.href.includes("curator_clanid=")) return;
+
+                //（2）抓 app ID
                 const m = a.href.match(/app\/(\d+)/);
                 if (!m) return;
                 const appId = m[1];
 
+                //（3）替換成 group 的 curation 連結
                 a.href = `https://steamcommunity.com/groups/${groupName}/curation/app/${appId}`;
                 count++;
             });
@@ -499,6 +505,7 @@
             popup(`已替換連結 (${count})`);
             console.log(`[Game Manager] Replaced ${count} app links`);
         }
+
 
         replaceLinks(); // initial run
 
